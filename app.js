@@ -306,12 +306,23 @@ async function signOutFromCloud() {
   route();
 }
 
+function useNativeAppleMaps() {
+  const platform = navigator.userAgentData?.platform || navigator.platform || '';
+  const device = `${navigator.userAgent || ''} ${platform}`;
+  return /iPhone|iPad|iPod|Mac/i.test(device) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function appleMapsLink(parameters) {
+  const base = useNativeAppleMaps() ? 'maps://?' : 'https://maps.apple.com/?';
+  return `${base}${parameters.toString()}`;
+}
+
 function mapSearch(query) {
-  return `https://maps.apple.com/?q=${encodeURIComponent(query)}`;
+  return appleMapsLink(new URLSearchParams({ q: query }));
 }
 
 function directions(destination, mode = 'd') {
-  return `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=${mode}`;
+  return appleMapsLink(new URLSearchParams({ daddr: destination, dirflg: mode }));
 }
 
 function safeExternalUrl(value) {
