@@ -483,7 +483,7 @@ function renderCustomizer(activePane = 'itinerario') {
     <section class="editor-pane" data-editor-pane="ricerche" ${activePane !== 'ricerche' ? 'hidden' : ''}>${utilitiesEditor()}</section>
     <footer class="editor-footer">
       <button class="button wide" id="reset-data" type="button">Ripristina contenuti originali</button>
-      <p class="editor-note">Le modifiche restano su questo dispositivo. Usa Esporta e Importa dal menu in alto per copiarle su iPhone o iPad.</p>
+      <p class="editor-note">Le modifiche vengono salvate automaticamente. La sincronizzazione cloud sarà indicata qui quando il database condiviso è collegato.</p>
     </footer>`;
 
   bindCustomizer();
@@ -547,34 +547,8 @@ function handleEditorChange(event) {
   saveData();
 }
 
-async function exportData() {
-  const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), days: trip.days, places, utilities }, null, 2);
-  const file = new File([data], 'croazia-2026-backup.json', { type: 'application/json' });
-  try {
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ title: 'Backup Croazia 2026', files: [file] });
-    } else {
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(file); link.download = file.name; link.click();
-      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-    }
-    showToast('Backup creato');
-  } catch (error) {
-    if (error.name !== 'AbortError') showToast('Non è stato possibile esportare il backup');
-  }
-}
-
-async function importData(file) {
-  try {
-    const data = JSON.parse(await file.text());
-    applyData(data); saveData(); appMenuDialog.close(); location.hash = '#home'; route();
-    showToast('Modifiche importate correttamente');
-  } catch (error) {
-    showToast('Il file scelto non è un backup valido');
-  }
-}
-
 function route() {
+  if (appMenuDialog.open) appMenuDialog.close();
   const name = location.hash.replace('#', '').split('/')[0] || 'home';
   const routes = { home: renderHome, itinerario: renderItinerary, luoghi: renderPlaces, utili: renderUtilities, personalizza: renderCustomizer };
   (routes[name] || renderHome)();
@@ -584,12 +558,9 @@ function route() {
 }
 
 document.querySelector('#app-menu-button').addEventListener('click', () => appMenuDialog.showModal());
-document.querySelector('#open-customizer').addEventListener('click', () => appMenuDialog.close());
-document.querySelector('#export-data').addEventListener('click', exportData);
-document.querySelector('#import-data').addEventListener('change', event => {
-  const [file] = event.target.files;
-  if (file) importData(file);
-  event.target.value = '';
+document.querySelector('#open-customizer').addEventListener('click', () => {
+  appMenuDialog.close();
+  requestAnimationFrame(() => { location.hash = '#personalizza'; });
 });
 window.addEventListener('hashchange', route);
 route();

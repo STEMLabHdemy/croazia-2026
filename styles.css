@@ -483,8 +483,11 @@ dialog p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
   color: var(--ink);
   background: #fbfcfb;
   font: inherit;
-  font-size: 13px;
+  font-size: 16px;
   outline: none;
+  touch-action: manipulation;
+  -webkit-user-select: text;
+  user-select: text;
 }
 .editor-field textarea { min-height: 82px; resize: vertical; line-height: 1.4; }
 .editor-field input:focus, .editor-field textarea:focus, .editor-field select:focus { border-color: var(--sea-600); box-shadow: 0 0 0 3px var(--sea-100); }
