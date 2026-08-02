@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b6f75" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Croazia 2026" />
+    <meta name="description" content="Itinerario tascabile per Krk e Cres, 3–9 agosto 2026." />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="assets/app-icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>Croazia 2026</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#home" aria-label="Croazia 2026, pagina iniziale">
+          <span class="brand-mark" aria-hidden="true">C</span>
+          <span>
+            <strong>Croazia 2026</strong>
+            <small>Krk · Cres</small>
+          </span>
+        </a>
+        <button class="icon-button" id="install-help" type="button" aria-label="Come installare l'app">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+        </button>
+      </header>
+
+      <main id="app" tabindex="-1"></main>
+
+      <nav class="bottom-nav" aria-label="Navigazione principale">
+        <a href="#home" data-route="home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>
+          <span>Home</span>
+        </a>
+        <a href="#itinerario" data-route="itinerario">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v3m8-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1z"/></svg>
+          <span>Itinerario</span>
+        </a>
+        <a href="#luoghi" data-route="luoghi">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span>Luoghi</span>
+        </a>
+        <a href="#utili" data-route="utili">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18"/></svg>
+          <span>Utili</span>
+        </a>
+      </nav>
+    </div>
+
+    <dialog id="install-dialog">
+      <form method="dialog">
+        <button class="dialog-close" value="cancel" aria-label="Chiudi">×</button>
+        <span class="dialog-icon" aria-hidden="true">↗</span>
+        <h2>Portala sulla Home</h2>
+        <p>In Safari tocca <strong>Condividi</strong>, poi <strong>Aggiungi alla schermata Home</strong> e attiva <strong>Apri come app</strong>.</p>
+        <button class="button primary wide" value="ok">Ho capito</button>
+      </form>
+    </dialog>
+
+    <noscript>Questa guida richiede JavaScript per mostrare l’itinerario.</noscript>
+    <script src="app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "Croazia 2026 · Krk e Cres",
+  "short_name": "Croazia 2026",
+  "description": "Itinerario tascabile per Krk e Cres, 3–9 agosto 2026.",
+  "start_url": "./#home",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f5",
+  "theme_color": "#0b6f75",
+  "lang": "it",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
