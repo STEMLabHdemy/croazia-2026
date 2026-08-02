@@ -439,9 +439,9 @@ function renderItinerary() {
       <p>Sette giornate tra Krk e Cres. Tocca un giorno per vedere orari, alternative e indicazioni.</p>
     </header>
     <div class="day-list">
-      ${trip.days.map((day, index) => `
-        <section class="card day-card ${index === 0 ? 'open' : ''}" data-day="${day.date}">
-          <button class="day-summary" type="button" aria-expanded="${index === 0}">
+      ${trip.days.map(day => `
+        <section class="card day-card" data-day="${day.date}">
+          <button class="day-summary" type="button" aria-expanded="false">
             <span class="date-block"><strong>${escapeHtml(day.number)}</strong><small>AGO</small></span>
             <span class="day-title"><strong>${escapeHtml(day.title)}</strong><small>${escapeHtml(day.weekday)} · ${escapeHtml(day.subtitle)}</small></span>
             <span class="chevron" aria-hidden="true">›</span>
@@ -556,7 +556,7 @@ function editorField(label, value, data, options = {}) {
 
 function itineraryEditor() {
   return `<div class="editor-stack">
-    ${trip.days.map((day, dayIndex) => `<details class="card editor-group" ${dayIndex === 0 ? 'open' : ''}>
+    ${trip.days.map((day, dayIndex) => `<details class="card editor-group">
       <summary>
         <span class="editor-number">${escapeHtml(day.number)}</span>
         <span><strong>${escapeHtml(day.weekday)} · ${escapeHtml(day.title)}</strong><small>${day.items.length} tappe o attività</small></span>
@@ -609,7 +609,7 @@ function placesEditor() {
 function utilitiesEditor() {
   return `<div class="editor-stack">
     <div class="notice"><span>i</span><div><strong>Come funzionano le parole chiave</strong><p>Apple Maps cerca il testo esattamente come se lo digitassi tu. Puoi provare, per esempio, “Benzinska postaja”, “Ljekarna” o il nome preciso di un’attività.</p></div></div>
-    ${utilities.map((utility, index) => `<details class="card editor-group" ${index === 0 ? 'open' : ''}>
+    ${utilities.map((utility, index) => `<details class="card editor-group">
       <summary>
         <span class="editor-number">${escapeHtml(utility.icon || '⌕')}</span>
         <span><strong>${escapeHtml(utility.name)}</strong><small>Ricerca: ${escapeHtml(utility.query)}</small></span>
