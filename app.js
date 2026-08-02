@@ -139,7 +139,6 @@ function saveData() {
 loadData();
 
 const app = document.querySelector('#app');
-const appMenuDialog = document.querySelector('#app-menu-dialog');
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>'"]/g, character => ({
@@ -548,20 +547,21 @@ function handleEditorChange(event) {
 }
 
 function route() {
-  if (appMenuDialog.open) appMenuDialog.close();
   const name = location.hash.replace('#', '').split('/')[0] || 'home';
   const routes = { home: renderHome, itinerario: renderItinerary, luoghi: renderPlaces, utili: renderUtilities, personalizza: renderCustomizer };
   (routes[name] || renderHome)();
   document.querySelectorAll('.bottom-nav a').forEach(link => link.classList.toggle('active', link.dataset.route === name));
   window.scrollTo(0, 0);
-  app.focus({ preventScroll: true });
 }
 
-document.querySelector('#app-menu-button').addEventListener('click', () => appMenuDialog.showModal());
-document.querySelector('#open-customizer').addEventListener('click', () => {
-  appMenuDialog.close();
-  requestAnimationFrame(() => { location.hash = '#personalizza'; });
+document.querySelector('#app-menu-button').addEventListener('click', () => {
+  location.hash = '#personalizza';
 });
+
+app.addEventListener('touchend', event => {
+  const field = event.target.closest('.editor-field input, .editor-field textarea');
+  if (field && document.activeElement !== field) field.focus();
+}, { passive: true });
 window.addEventListener('hashchange', route);
 route();
 
