@@ -458,6 +458,17 @@ main {
 .editor-add { width: 100%; margin-top: 12px; border-style: dashed; background: var(--sea-50); }
 .editor-footer { display: grid; gap: 10px; margin-top: 22px; padding-top: 19px; border-top: 1px solid var(--line); }
 .editor-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; text-align: center; }
+.cloud-card { max-width: 520px; margin: 28px auto 0; padding: 22px; text-align: center; }
+.cloud-card-icon { display: grid; width: 50px; height: 50px; margin: 0 auto 17px; place-items: center; border-radius: 16px; color: var(--sea-800); background: var(--sea-50); font-size: 24px; }
+.cloud-card h2 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
+.cloud-card > p { margin: 8px 0 19px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.cloud-login-form { display: grid; gap: 13px; margin-top: 20px; text-align: left; }
+.cloud-login-form .button { margin-top: 3px; }
+.cloud-login-form button:disabled { opacity: .62; }
+.form-error { min-height: 16px; margin: 0; color: #b04c3a; font-size: 11px; text-align: center; }
+.cloud-note { margin-top: 18px; }
+.loading-dot { display: block; width: 18px; height: 18px; margin: 0 auto 16px; border: 2px solid var(--sea-100); border-top-color: var(--sea-700); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .toast { position: fixed; z-index: 80; right: 18px; bottom: calc(88px + var(--safe-bottom)); left: 18px; max-width: 420px; margin: auto; padding: 13px 16px; border-radius: 15px; color: white; background: var(--sea-900); box-shadow: var(--shadow); font-size: 12px; font-weight: 700; text-align: center; animation: toast-in .22s ease-out; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 

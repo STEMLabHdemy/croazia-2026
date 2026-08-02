@@ -100,7 +100,10 @@ const utilities = [
 ];
 
 const STORAGE_KEY = 'croazia-2026-custom-data-v1';
+const GUIDE_ID = 'croazia-2026';
+const OWNER_EMAIL = 'stemlabhdemy@proton.me';
 const defaults = JSON.parse(JSON.stringify({ days: trip.days, places, utilities }));
+const cloud = { client: null, user: null, initialized: false, available: false, channel: null, saveTimer: null };
 
 function replaceArray(target, source) {
   target.splice(0, target.length, ...source);
@@ -130,10 +133,13 @@ function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, days: trip.days, places, utilities }));
   const status = document.querySelector('#save-status');
   if (status) {
-    status.textContent = 'Salvato sul dispositivo';
+    status.textContent = cloud.user ? 'Sincronizzazione…' : 'Salvato solo su questo browser';
     clearTimeout(saveData.statusTimer);
-    saveData.statusTimer = setTimeout(() => { status.textContent = 'Modifiche salvate automaticamente'; }, 1600);
+    saveData.statusTimer = setTimeout(() => {
+      if (!cloud.user) status.textContent = 'Accedi per sincronizzare le modifiche';
+    }, 1600);
   }
+  scheduleCloudSave();
 }
 
 loadData();
@@ -154,6 +160,126 @@ function showToast(message) {
   toast.textContent = message;
   document.body.append(toast);
   setTimeout(() => toast.remove(), 2600);
+}
+
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function currentData() {
+  return { version: 1, days: trip.days, places, utilities };
+}
+
+function setSaveStatus(message) {
+  const status = document.querySelector('#save-status');
+  if (status) status.textContent = message;
+}
+
+async function initCloud() {
+  const config = window.CROAZIA_CLOUD;
+  if (!config?.supabaseUrl || !config?.publishableKey || !window.supabase?.createClient) {
+    cloud.initialized = true;
+    return;
+  }
+
+  cloud.client = window.supabase.createClient(config.supabaseUrl, config.publishableKey, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  });
+
+  const { data: { session } } = await cloud.client.auth.getSession();
+  cloud.user = session?.user || null;
+  cloud.initialized = true;
+  await loadCloudGuide();
+  subscribeToCloud();
+
+  cloud.client.auth.onAuthStateChange((_event, nextSession) => {
+    cloud.user = nextSession?.user || null;
+    if (location.hash.startsWith('#personalizza')) route();
+  });
+
+  if (location.hash.startsWith('#personalizza')) route();
+}
+
+async function loadCloudGuide() {
+  if (!cloud.client) return false;
+  const { data, error } = await cloud.client
+    .from('travel_guides')
+    .select('content, updated_at')
+    .eq('id', GUIDE_ID)
+    .maybeSingle();
+
+  if (error) {
+    cloud.available = false;
+    console.warn('Cloud non ancora configurato:', error.message);
+    return false;
+  }
+
+  cloud.available = true;
+  if (data?.content && validData(data.content)) {
+    applyData(data.content);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data.content));
+    route();
+    return true;
+  }
+  return false;
+}
+
+function subscribeToCloud() {
+  if (!cloud.client || cloud.channel) return;
+  cloud.channel = cloud.client
+    .channel('croazia-2026-live')
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'travel_guides', filter: `id=eq.${GUIDE_ID}`
+    }, payload => {
+      const incoming = payload.new?.content;
+      if (!validData(incoming) || JSON.stringify(incoming) === JSON.stringify(currentData())) return;
+      applyData(incoming);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(incoming));
+      route();
+      showToast('Guida aggiornata dal cloud');
+    })
+    .subscribe();
+}
+
+function scheduleCloudSave() {
+  if (!cloud.client || !cloud.user) return;
+  clearTimeout(cloud.saveTimer);
+  cloud.saveTimer = setTimeout(saveCloudData, 650);
+}
+
+async function saveCloudData() {
+  if (!cloud.client || !cloud.user) return;
+  const payload = currentData();
+  const { error } = await cloud.client.from('travel_guides').upsert({
+    id: GUIDE_ID,
+    owner_id: cloud.user.id,
+    content: payload,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'id' });
+
+  if (error) {
+    setSaveStatus('Errore di sincronizzazione');
+    showToast('Non è stato possibile salvare nel cloud');
+    return;
+  }
+
+  cloud.available = true;
+  setSaveStatus('Salvato e sincronizzato');
+}
+
+async function signInToCloud(password) {
+  const { data, error } = await cloud.client.auth.signInWithPassword({ email: OWNER_EMAIL, password });
+  if (error) throw error;
+  cloud.user = data.user;
+  const hasGuide = await loadCloudGuide();
+  if (!hasGuide) await saveCloudData();
+}
+
+async function signOutFromCloud() {
+  if (!cloud.client) return;
+  await cloud.client.auth.signOut();
+  cloud.user = null;
+  route();
 }
 
 function mapSearch(query) {
@@ -466,11 +592,68 @@ function utilitiesEditor() {
   </div>`;
 }
 
+function customizerHeader(description) {
+  return `<header class="customizer-head">
+    <a class="back-button" href="#home" aria-label="Torna alla guida">‹</a>
+    <div><h1>Personalizza</h1><p>${description}</p></div>
+  </header>`;
+}
+
+function renderStandaloneEditorInfo() {
+  const editorUrl = `${location.origin}${location.pathname}#personalizza`;
+  app.innerHTML = `
+    ${customizerHeader('La PWA resta pulita e riceve automaticamente le modifiche salvate online.')}
+    <section class="card cloud-card">
+      <span class="cloud-card-icon">↗</span>
+      <h2>Modifica dal browser</h2>
+      <p>Apri l’editor in Safari oppure sul PC. Questa app aggiornerà itinerario, luoghi e ricerche dal cloud senza bisogno della tastiera.</p>
+      <a class="button primary wide" href="${editorUrl}" target="_blank" rel="noopener">Apri l’editor nel browser</a>
+    </section>
+    <p class="editor-note cloud-note">I contenuti disponibili offline sono l’ultima versione sincronizzata.</p>`;
+}
+
+function renderCloudLogin() {
+  app.innerHTML = `
+    ${customizerHeader('Accedi per modificare la guida condivisa da PC o Safari.')}
+    <section class="card cloud-card">
+      <span class="cloud-card-icon">⌁</span>
+      <h2>Accesso alla modifica</h2>
+      <p>Le modifiche salvate qui compariranno automaticamente nella PWA su iPhone e iPad.</p>
+      <form id="cloud-login-form" class="cloud-login-form">
+        <label class="editor-field"><span>Email</span><input type="email" value="${OWNER_EMAIL}" readonly></label>
+        <label class="editor-field"><span>Password</span><input id="cloud-password" type="password" autocomplete="current-password" required></label>
+        <button class="button primary wide" type="submit">Accedi</button>
+        <p class="form-error" id="cloud-login-error" role="alert"></p>
+      </form>
+    </section>`;
+
+  document.querySelector('#cloud-login-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button');
+    const errorBox = document.querySelector('#cloud-login-error');
+    button.disabled = true; button.textContent = 'Accesso…'; errorBox.textContent = '';
+    try {
+      await signInToCloud(document.querySelector('#cloud-password').value);
+      renderCustomizer();
+    } catch (error) {
+      errorBox.textContent = error.message === 'Invalid login credentials' ? 'Email o password non corretti.' : `Accesso non riuscito: ${error.message}`;
+      button.disabled = false; button.textContent = 'Accedi';
+    }
+  });
+}
+
 function renderCustomizer(activePane = 'itinerario') {
+  if (isStandalone()) return renderStandaloneEditorInfo();
+  if (!cloud.initialized) {
+    app.innerHTML = `${customizerHeader('Connessione al salvataggio condiviso…')}<section class="card cloud-card"><span class="loading-dot"></span><h2>Caricamento</h2><p>Sto verificando la sincronizzazione cloud.</p></section>`;
+    return;
+  }
+  if (!cloud.user) return renderCloudLogin();
+
   app.innerHTML = `
     <header class="customizer-head">
       <a class="back-button" href="#home" aria-label="Torna alla guida">‹</a>
-      <div><h1>Personalizza</h1><p>Quest’area è separata dalla guida: nella consultazione normale non comparirà nessun pulsante di modifica.</p><span class="save-status" id="save-status">Modifiche salvate automaticamente</span></div>
+      <div><h1>Personalizza</h1><p>Stai modificando la guida condivisa.</p><span class="save-status" id="save-status">Salvato e sincronizzato</span></div>
     </header>
     <div class="editor-tabs" role="tablist">
       <button class="editor-tab ${activePane === 'itinerario' ? 'active' : ''}" data-editor-tab="itinerario" type="button">Itinerario</button>
@@ -482,10 +665,12 @@ function renderCustomizer(activePane = 'itinerario') {
     <section class="editor-pane" data-editor-pane="ricerche" ${activePane !== 'ricerche' ? 'hidden' : ''}>${utilitiesEditor()}</section>
     <footer class="editor-footer">
       <button class="button wide" id="reset-data" type="button">Ripristina contenuti originali</button>
-      <p class="editor-note">Le modifiche vengono salvate automaticamente. La sincronizzazione cloud sarà indicata qui quando il database condiviso è collegato.</p>
+      <button class="text-button" id="cloud-sign-out" type="button">Esci dalla modalità modifica</button>
+      <p class="editor-note">Le modifiche vengono salvate online e inviate automaticamente agli altri dispositivi.</p>
     </footer>`;
 
   bindCustomizer();
+  document.querySelector('#cloud-sign-out').addEventListener('click', signOutFromCloud);
 }
 
 function bindCustomizer() {
@@ -527,7 +712,7 @@ function bindCustomizer() {
   }));
   document.querySelector('#reset-data')?.addEventListener('click', () => {
     if (!confirm('Ripristinare tutti i contenuti originali? Le tue modifiche verranno eliminate.')) return;
-    applyData(JSON.parse(JSON.stringify(defaults))); localStorage.removeItem(STORAGE_KEY); renderCustomizer('itinerario'); showToast('Contenuti originali ripristinati');
+    applyData(JSON.parse(JSON.stringify(defaults))); saveData(); renderCustomizer('itinerario'); showToast('Contenuti originali ripristinati');
   });
 }
 
@@ -564,6 +749,7 @@ app.addEventListener('touchend', event => {
 }, { passive: true });
 window.addEventListener('hashchange', route);
 route();
+initCloud();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));

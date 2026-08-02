@@ -1,8 +1,10 @@
-const CACHE_NAME = 'croazia-2026-v6';
+const CACHE_NAME = 'croazia-2026-v7';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
+  './cloud-config.js',
+  './vendor/supabase.js',
   './app.js',
   './manifest.webmanifest',
   './assets/app-icon.svg',

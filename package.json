@@ -1,0 +1,13 @@
+{
+  "name": "croazia-2026",
+  "private": true,
+  "scripts": {
+    "build:cloud": "esbuild cloud-entry.js --bundle --format=iife --minify --outfile=vendor/supabase.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9"
+  }
+}
