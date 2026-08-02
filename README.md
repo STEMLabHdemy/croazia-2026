@@ -2,6 +2,12 @@
 
 Web app mobile-first per il viaggio tra Krk e Cres dal 3 al 9 agosto 2026.
 
+## Personalizzazione
+
+Il menu in alto apre un’area separata per modificare itinerario, luoghi, destinazioni Apple Maps e parole chiave delle ricerche rapide. Le modifiche sono salvate automaticamente nel browser del dispositivo.
+
+La funzione **Esporta modifiche** crea un backup JSON; **Importa modifiche** permette di applicarlo su un altro iPhone o iPad. In questo modo la schermata normale resta pulita e i dati possono essere trasferiti senza un account o un database.
+
 ## Anteprima locale
 
 Avviare un server statico nella cartella del progetto:

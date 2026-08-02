@@ -99,8 +99,63 @@ const utilities = [
   { name: 'Pronto soccorso vicino a me', subtitle: 'Ricerca in Apple Maps', icon: '♥', query: 'hospital emergency' }
 ];
 
+const STORAGE_KEY = 'croazia-2026-custom-data-v1';
+const defaults = JSON.parse(JSON.stringify({ days: trip.days, places, utilities }));
+
+function replaceArray(target, source) {
+  target.splice(0, target.length, ...source);
+}
+
+function validData(data) {
+  return data && Array.isArray(data.days) && data.days.length > 0 && data.days.every(day => Array.isArray(day.items)) && Array.isArray(data.places) && Array.isArray(data.utilities);
+}
+
+function applyData(data) {
+  if (!validData(data)) throw new Error('Formato del backup non valido');
+  replaceArray(trip.days, data.days);
+  replaceArray(places, data.places);
+  replaceArray(utilities, data.utilities);
+}
+
+function loadData() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (validData(saved)) applyData(saved);
+  } catch (error) {
+    console.warn('Impossibile caricare le personalizzazioni:', error);
+  }
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, days: trip.days, places, utilities }));
+  const status = document.querySelector('#save-status');
+  if (status) {
+    status.textContent = 'Salvato sul dispositivo';
+    clearTimeout(saveData.statusTimer);
+    saveData.statusTimer = setTimeout(() => { status.textContent = 'Modifiche salvate automaticamente'; }, 1600);
+  }
+}
+
+loadData();
+
 const app = document.querySelector('#app');
-const installDialog = document.querySelector('#install-dialog');
+const appMenuDialog = document.querySelector('#app-menu-dialog');
+
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>'"]/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  })[character]);
+}
+
+function showToast(message) {
+  document.querySelector('.toast')?.remove();
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.setAttribute('role', 'status');
+  toast.textContent = message;
+  document.body.append(toast);
+  setTimeout(() => toast.remove(), 2600);
+}
 
 function mapSearch(query) {
   return `https://maps.apple.com/?q=${encodeURIComponent(query)}`;
@@ -108,6 +163,13 @@ function mapSearch(query) {
 
 function directions(destination, mode = 'd') {
   return `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=${mode}`;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? escapeHtml(url.href) : '#';
+  } catch { return '#'; }
 }
 
 function mapsButtons(place, compact = false) {
@@ -122,33 +184,35 @@ function itemActions(item) {
   if (!item.place && !item.url) return '';
   return `<div class="actions">
     ${item.place ? `<a class="button soft" href="${directions(item.place)}" target="_blank" rel="noopener">${icons.route} Indicazioni</a>` : ''}
-    ${item.url ? `<a class="button" href="${item.url}" target="_blank" rel="noopener">${icons.link} Sito</a>` : ''}
+    ${item.url ? `<a class="button" href="${safeExternalUrl(item.url)}" target="_blank" rel="noopener">${icons.link} Sito</a>` : ''}
   </div>`;
 }
 
 function tags(items = []) {
   if (!items.length) return '';
-  return `<div class="tip-list">${items.map(item => `<span class="pill warning">${item}</span>`).join('')}</div>`;
+  return `<div class="tip-list">${items.map(item => `<span class="pill warning">${escapeHtml(item)}</span>`).join('')}</div>`;
 }
 
 function getTripState() {
   const now = new Date();
+  const fallbackItem = day => day?.items?.[0] || { title: 'Giornata da programmare', text: 'Non hai ancora inserito tappe per questa giornata.' };
   if (now < trip.start) {
     const days = Math.ceil((trip.start - now) / 86400000);
     const unit = days === 1 ? 'giorno' : 'giorni';
-    return { kicker: 'Il viaggio si avvicina', title: `${days} ${unit} alla partenza`, day: trip.days[0], item: trip.days[0].items[0] };
+    return { kicker: 'Il viaggio si avvicina', title: `${days} ${unit} alla partenza`, day: trip.days[0], item: fallbackItem(trip.days[0]) };
   }
   if (now > trip.end) {
-    return { kicker: 'Il vostro viaggio', title: 'Croazia 2026', day: trip.days[0], item: trip.days[0].items[0] };
+    return { kicker: 'Il vostro viaggio', title: 'Croazia 2026', day: trip.days[0], item: fallbackItem(trip.days[0]) };
   }
   const todayKey = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(now);
   const day = trip.days.find(entry => entry.date === todayKey) || trip.days[0];
-  return { kicker: 'Il programma di oggi', title: `${day.weekday} ${day.number}`, day, item: day.items[0] };
+  return { kicker: 'Il programma di oggi', title: `${day.weekday} ${day.number}`, day, item: fallbackItem(day) };
 }
 
 function renderHome() {
   const state = getTripState();
-  const heroTitle = state.title.replace(' alla ', '<br>alla ');
+  const heroTitle = escapeHtml(state.title).replace(' alla ', '<br>alla ');
+  const firstLodging = places.find(place => place.category === 'alloggi');
   app.innerHTML = `
     <section class="hero">
       <p class="eyebrow">${state.kicker}</p>
@@ -162,12 +226,12 @@ function renderHome() {
     <section class="card next-card">
       <div class="next-top">
         <div>
-          <span class="next-time">PRIMA TAPPA · ${state.day.weekday.toUpperCase()} ${state.day.number}</span>
-          <h2>${state.item.title}</h2>
+          <span class="next-time">PRIMA TAPPA · ${escapeHtml(state.day.weekday.toUpperCase())} ${escapeHtml(state.day.number)}</span>
+          <h2>${escapeHtml(state.item.title)}</h2>
         </div>
         <span class="pill warning">Da preparare</span>
       </div>
-      <p>${state.item.text}</p>
+      <p>${escapeHtml(state.item.text)}</p>
       ${itemActions(state.item)}
     </section>
 
@@ -175,7 +239,7 @@ function renderHome() {
       <div class="section-head"><h2>Accesso rapido</h2></div>
       <div class="quick-grid">
         <a class="card quick-card" href="#itinerario"><span class="quick-icon">☼</span><strong>7 giornate</strong><small>Programma completo</small></a>
-        <a class="card quick-card" href="${directions('Creska 9, 51523 Baška, Croatia')}" target="_blank" rel="noopener"><span class="quick-icon">⌂</span><strong>Alloggio Baška</strong><small>Apri indicazioni</small></a>
+        <a class="card quick-card" href="${directions(firstLodging?.address || 'Baška, Croatia')}" target="_blank" rel="noopener"><span class="quick-icon">⌂</span><strong>${escapeHtml(firstLodging?.name || 'Alloggio Baška')}</strong><small>Apri indicazioni</small></a>
         <a class="card quick-card" href="https://www.jadrolinija.hr/" target="_blank" rel="noopener"><span class="quick-icon">⇄</span><strong>Traghetto</strong><small>Jadrolinija</small></a>
         <a class="card quick-card" href="#utili"><span class="quick-icon">✚</span><strong>Servizi utili</strong><small>Farmacie e benzina</small></a>
       </div>
@@ -199,9 +263,9 @@ function renderHome() {
 
 function renderTimelineItem(item) {
   return `<article class="timeline-item">
-    <div class="timeline-time">${item.time}</div>
-    <h3>${item.title}</h3>
-    <p>${item.text}</p>
+    <div class="timeline-time">${escapeHtml(item.time)}</div>
+    <h3>${escapeHtml(item.title)}</h3>
+    <p>${escapeHtml(item.text)}</p>
     ${tags(item.tags)}
     ${itemActions(item)}
   </article>`;
@@ -218,8 +282,8 @@ function renderItinerary() {
       ${trip.days.map((day, index) => `
         <section class="card day-card ${index === 0 ? 'open' : ''}" data-day="${day.date}">
           <button class="day-summary" type="button" aria-expanded="${index === 0}">
-            <span class="date-block"><strong>${day.number}</strong><small>AGO</small></span>
-            <span class="day-title"><strong>${day.title}</strong><small>${day.weekday} · ${day.subtitle}</small></span>
+            <span class="date-block"><strong>${escapeHtml(day.number)}</strong><small>AGO</small></span>
+            <span class="day-title"><strong>${escapeHtml(day.title)}</strong><small>${escapeHtml(day.weekday)} · ${escapeHtml(day.subtitle)}</small></span>
             <span class="chevron" aria-hidden="true">›</span>
           </button>
           <div class="day-details">
@@ -240,10 +304,10 @@ function renderItinerary() {
 function placeCard(place) {
   return `<article class="card place-card" data-category="${place.category}">
     <div class="place-card-head">
-      <div><h2>${place.name}</h2><p class="place-area">${place.area}</p></div>
-      <span class="place-icon" aria-hidden="true">${place.icon}</span>
+      <div><h2>${escapeHtml(place.name)}</h2><p class="place-area">${escapeHtml(place.area)}</p></div>
+      <span class="place-icon" aria-hidden="true">${escapeHtml(place.icon)}</span>
     </div>
-    <p>${place.note}</p>
+    <p>${escapeHtml(place.note)}</p>
     ${mapsButtons(place.address, true)}
   </article>`;
 }
@@ -284,8 +348,8 @@ function renderUtilities() {
       <div class="section-head"><h2>Vicino a me</h2></div>
       <div class="utility-grid">
         ${utilities.map(item => `<a class="card utility-card" href="${mapSearch(item.query)}" target="_blank" rel="noopener">
-          <span class="utility-icon" aria-hidden="true">${item.icon}</span>
-          <span><strong>${item.name}</strong><small>${item.subtitle}</small></span>
+          <span class="utility-icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
+          <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></span>
           <span class="utility-arrow" aria-hidden="true">›</span>
         </a>`).join('')}
       </div>
@@ -318,16 +382,215 @@ function renderUtilities() {
     </section>`;
 }
 
+function editorField(label, value, data, options = {}) {
+  const attributes = Object.entries(data).map(([key, item]) => `data-${key}="${escapeHtml(item)}"`).join(' ');
+  const content = escapeHtml(value ?? '');
+  if (options.type === 'textarea') {
+    return `<label class="editor-field"><span>${label}</span><textarea ${attributes}>${content}</textarea></label>`;
+  }
+  if (options.type === 'select') {
+    return `<label class="editor-field"><span>${label}</span><select ${attributes}>${options.choices.map(([key, text]) => `<option value="${key}" ${value === key ? 'selected' : ''}>${text}</option>`).join('')}</select></label>`;
+  }
+  return `<label class="editor-field"><span>${label}</span><input type="${options.type || 'text'}" value="${content}" ${attributes}></label>`;
+}
+
+function itineraryEditor() {
+  return `<div class="editor-stack">
+    ${trip.days.map((day, dayIndex) => `<details class="card editor-group" ${dayIndex === 0 ? 'open' : ''}>
+      <summary>
+        <span class="editor-number">${escapeHtml(day.number)}</span>
+        <span><strong>${escapeHtml(day.weekday)} · ${escapeHtml(day.title)}</strong><small>${day.items.length} tappe o attività</small></span>
+      </summary>
+      <div class="editor-content">
+        <div class="editor-fields">
+          ${editorField('Titolo della giornata', day.title, { kind: 'day', day: dayIndex, field: 'title' })}
+          ${editorField('Sottotitolo', day.subtitle, { kind: 'day', day: dayIndex, field: 'subtitle' })}
+        </div>
+        ${day.items.map((item, itemIndex) => `<section class="editor-item">
+          <div class="editor-item-head"><strong>Tappa ${itemIndex + 1}</strong><button class="text-button danger" type="button" data-delete-item data-day="${dayIndex}" data-item="${itemIndex}">Elimina</button></div>
+          <div class="editor-fields">
+            ${editorField('Orario o momento', item.time, { kind: 'item', day: dayIndex, item: itemIndex, field: 'time' })}
+            ${editorField('Titolo', item.title, { kind: 'item', day: dayIndex, item: itemIndex, field: 'title' })}
+            ${editorField('Descrizione', item.text, { kind: 'item', day: dayIndex, item: itemIndex, field: 'text' }, { type: 'textarea' })}
+            ${editorField('Destinazione Apple Maps', item.place || '', { kind: 'item', day: dayIndex, item: itemIndex, field: 'place' })}
+            ${editorField('Sito o prenotazione', item.url || '', { kind: 'item', day: dayIndex, item: itemIndex, field: 'url' }, { type: 'url' })}
+            ${editorField('Note brevi, separate da virgola', (item.tags || []).join(', '), { kind: 'item', day: dayIndex, item: itemIndex, field: 'tags' })}
+          </div>
+        </section>`).join('')}
+        <button class="button editor-add" type="button" data-add-item="${dayIndex}">+ Aggiungi tappa</button>
+      </div>
+    </details>`).join('')}
+  </div>`;
+}
+
+function placesEditor() {
+  const categories = [['spiagge', 'Spiagge'], ['attivita', 'Attività e rent'], ['trasporti', 'Trasporti'], ['alloggi', 'Alloggi']];
+  return `<div class="editor-stack">
+    ${places.map((place, index) => `<details class="card editor-group">
+      <summary>
+        <span class="editor-number">${escapeHtml(place.icon || '•')}</span>
+        <span><strong>${escapeHtml(place.name)}</strong><small>${escapeHtml(place.area)}</small></span>
+      </summary>
+      <div class="editor-content">
+        <div class="editor-item-head"><strong>Informazioni del luogo</strong><button class="text-button danger" type="button" data-delete-place="${index}">Elimina</button></div>
+        <div class="editor-fields">
+          ${editorField('Nome', place.name, { kind: 'place', index, field: 'name' })}
+          ${editorField('Zona', place.area, { kind: 'place', index, field: 'area' })}
+          ${editorField('Categoria', place.category, { kind: 'place', index, field: 'category' }, { type: 'select', choices: categories })}
+          ${editorField('Destinazione Apple Maps', place.address, { kind: 'place', index, field: 'address' })}
+          ${editorField('Descrizione', place.note, { kind: 'place', index, field: 'note' }, { type: 'textarea' })}
+        </div>
+      </div>
+    </details>`).join('')}
+    <button class="button editor-add" type="button" data-add-place>+ Aggiungi luogo</button>
+  </div>`;
+}
+
+function utilitiesEditor() {
+  return `<div class="editor-stack">
+    <div class="notice"><span>i</span><div><strong>Come funzionano le parole chiave</strong><p>Apple Maps cerca il testo esattamente come se lo digitassi tu. Puoi provare, per esempio, “Benzinska postaja”, “Ljekarna” o il nome preciso di un’attività.</p></div></div>
+    ${utilities.map((utility, index) => `<details class="card editor-group" ${index === 0 ? 'open' : ''}>
+      <summary>
+        <span class="editor-number">${escapeHtml(utility.icon || '⌕')}</span>
+        <span><strong>${escapeHtml(utility.name)}</strong><small>Ricerca: ${escapeHtml(utility.query)}</small></span>
+      </summary>
+      <div class="editor-content">
+        <div class="editor-item-head"><strong>Ricerca rapida</strong><button class="text-button danger" type="button" data-delete-utility="${index}">Elimina</button></div>
+        <div class="editor-fields">
+          ${editorField('Nome del pulsante', utility.name, { kind: 'utility', index, field: 'name' })}
+          ${editorField('Parole chiave per Apple Maps', utility.query, { kind: 'utility', index, field: 'query' })}
+          ${editorField('Sottotitolo', utility.subtitle, { kind: 'utility', index, field: 'subtitle' })}
+        </div>
+      </div>
+    </details>`).join('')}
+    <button class="button editor-add" type="button" data-add-utility>+ Aggiungi ricerca rapida</button>
+  </div>`;
+}
+
+function renderCustomizer(activePane = 'itinerario') {
+  app.innerHTML = `
+    <header class="customizer-head">
+      <a class="back-button" href="#home" aria-label="Torna alla guida">‹</a>
+      <div><h1>Personalizza</h1><p>Quest’area è separata dalla guida: nella consultazione normale non comparirà nessun pulsante di modifica.</p><span class="save-status" id="save-status">Modifiche salvate automaticamente</span></div>
+    </header>
+    <div class="editor-tabs" role="tablist">
+      <button class="editor-tab ${activePane === 'itinerario' ? 'active' : ''}" data-editor-tab="itinerario" type="button">Itinerario</button>
+      <button class="editor-tab ${activePane === 'luoghi' ? 'active' : ''}" data-editor-tab="luoghi" type="button">Luoghi e posizioni</button>
+      <button class="editor-tab ${activePane === 'ricerche' ? 'active' : ''}" data-editor-tab="ricerche" type="button">Ricerche rapide</button>
+    </div>
+    <section class="editor-pane" data-editor-pane="itinerario" ${activePane !== 'itinerario' ? 'hidden' : ''}>${itineraryEditor()}</section>
+    <section class="editor-pane" data-editor-pane="luoghi" ${activePane !== 'luoghi' ? 'hidden' : ''}>${placesEditor()}</section>
+    <section class="editor-pane" data-editor-pane="ricerche" ${activePane !== 'ricerche' ? 'hidden' : ''}>${utilitiesEditor()}</section>
+    <footer class="editor-footer">
+      <button class="button wide" id="reset-data" type="button">Ripristina contenuti originali</button>
+      <p class="editor-note">Le modifiche restano su questo dispositivo. Usa Esporta e Importa dal menu in alto per copiarle su iPhone o iPad.</p>
+    </footer>`;
+
+  bindCustomizer();
+}
+
+function bindCustomizer() {
+  document.querySelectorAll('[data-editor-tab]').forEach(button => {
+    button.addEventListener('click', () => {
+      const pane = button.dataset.editorTab;
+      document.querySelectorAll('[data-editor-tab]').forEach(tab => tab.classList.toggle('active', tab === button));
+      document.querySelectorAll('[data-editor-pane]').forEach(section => { section.hidden = section.dataset.editorPane !== pane; });
+    });
+  });
+
+  app.addEventListener('change', handleEditorChange, { once: false });
+
+  document.querySelectorAll('[data-add-item]').forEach(button => button.addEventListener('click', () => {
+    const dayIndex = Number(button.dataset.addItem);
+    trip.days[dayIndex].items.push({ time: 'Da definire', title: 'Nuova tappa', text: '', place: '', tags: [] });
+    saveData(); renderCustomizer('itinerario');
+  }));
+  document.querySelectorAll('[data-delete-item]').forEach(button => button.addEventListener('click', () => {
+    if (!confirm('Eliminare questa tappa?')) return;
+    trip.days[Number(button.dataset.day)].items.splice(Number(button.dataset.item), 1);
+    saveData(); renderCustomizer('itinerario');
+  }));
+  document.querySelector('[data-add-place]')?.addEventListener('click', () => {
+    places.push({ name: 'Nuovo luogo', area: 'Croazia', category: 'spiagge', icon: '•', address: '', note: '' });
+    saveData(); renderCustomizer('luoghi');
+  });
+  document.querySelectorAll('[data-delete-place]').forEach(button => button.addEventListener('click', () => {
+    if (!confirm('Eliminare questo luogo?')) return;
+    places.splice(Number(button.dataset.deletePlace), 1); saveData(); renderCustomizer('luoghi');
+  }));
+  document.querySelector('[data-add-utility]')?.addEventListener('click', () => {
+    utilities.push({ name: 'Nuova ricerca', subtitle: 'Ricerca in Apple Maps', icon: '⌕', query: '' });
+    saveData(); renderCustomizer('ricerche');
+  });
+  document.querySelectorAll('[data-delete-utility]').forEach(button => button.addEventListener('click', () => {
+    if (!confirm('Eliminare questa ricerca rapida?')) return;
+    utilities.splice(Number(button.dataset.deleteUtility), 1); saveData(); renderCustomizer('ricerche');
+  }));
+  document.querySelector('#reset-data')?.addEventListener('click', () => {
+    if (!confirm('Ripristinare tutti i contenuti originali? Le tue modifiche verranno eliminate.')) return;
+    applyData(JSON.parse(JSON.stringify(defaults))); localStorage.removeItem(STORAGE_KEY); renderCustomizer('itinerario'); showToast('Contenuti originali ripristinati');
+  });
+}
+
+function handleEditorChange(event) {
+  const input = event.target;
+  const kind = input.dataset.kind;
+  if (!kind) return;
+  const field = input.dataset.field;
+  let target;
+  if (kind === 'day') target = trip.days[Number(input.dataset.day)];
+  if (kind === 'item') target = trip.days[Number(input.dataset.day)].items[Number(input.dataset.item)];
+  if (kind === 'place') target = places[Number(input.dataset.index)];
+  if (kind === 'utility') target = utilities[Number(input.dataset.index)];
+  if (!target) return;
+  target[field] = field === 'tags' ? input.value.split(',').map(value => value.trim()).filter(Boolean) : input.value.trim();
+  saveData();
+}
+
+async function exportData() {
+  const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), days: trip.days, places, utilities }, null, 2);
+  const file = new File([data], 'croazia-2026-backup.json', { type: 'application/json' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ title: 'Backup Croazia 2026', files: [file] });
+    } else {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(file); link.download = file.name; link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }
+    showToast('Backup creato');
+  } catch (error) {
+    if (error.name !== 'AbortError') showToast('Non è stato possibile esportare il backup');
+  }
+}
+
+async function importData(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    applyData(data); saveData(); appMenuDialog.close(); location.hash = '#home'; route();
+    showToast('Modifiche importate correttamente');
+  } catch (error) {
+    showToast('Il file scelto non è un backup valido');
+  }
+}
+
 function route() {
   const name = location.hash.replace('#', '').split('/')[0] || 'home';
-  const routes = { home: renderHome, itinerario: renderItinerary, luoghi: renderPlaces, utili: renderUtilities };
+  const routes = { home: renderHome, itinerario: renderItinerary, luoghi: renderPlaces, utili: renderUtilities, personalizza: renderCustomizer };
   (routes[name] || renderHome)();
   document.querySelectorAll('.bottom-nav a').forEach(link => link.classList.toggle('active', link.dataset.route === name));
   window.scrollTo(0, 0);
   app.focus({ preventScroll: true });
 }
 
-document.querySelector('#install-help').addEventListener('click', () => installDialog.showModal());
+document.querySelector('#app-menu-button').addEventListener('click', () => appMenuDialog.showModal());
+document.querySelector('#open-customizer').addEventListener('click', () => appMenuDialog.close());
+document.querySelector('#export-data').addEventListener('click', exportData);
+document.querySelector('#import-data').addEventListener('change', event => {
+  const [file] = event.target.files;
+  if (file) importData(file);
+  event.target.value = '';
+});
 window.addEventListener('hashchange', route);
 route();
 

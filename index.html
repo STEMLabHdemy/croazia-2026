@@ -24,8 +24,8 @@
             <small>Krk · Cres</small>
           </span>
         </a>
-        <button class="icon-button" id="install-help" type="button" aria-label="Come installare l'app">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>
+        <button class="icon-button" id="app-menu-button" type="button" aria-label="Apri menu e personalizzazione">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10m4 0h2M4 17h2m4 0h10M14 4v6M6 14v6"/></svg>
         </button>
       </header>
 
@@ -51,13 +51,34 @@
       </nav>
     </div>
 
-    <dialog id="install-dialog">
+    <dialog id="app-menu-dialog">
       <form method="dialog">
         <button class="dialog-close" value="cancel" aria-label="Chiudi">×</button>
-        <span class="dialog-icon" aria-hidden="true">↗</span>
-        <h2>Portala sulla Home</h2>
-        <p>In Safari tocca <strong>Condividi</strong>, poi <strong>Aggiungi alla schermata Home</strong> e attiva <strong>Apri come app</strong>.</p>
-        <button class="button primary wide" value="ok">Ho capito</button>
+        <span class="dialog-icon" aria-hidden="true">☼</span>
+        <h2>La tua guida</h2>
+        <p class="dialog-lead">Consulta il viaggio normalmente oppure entra nell’area separata per modificarne i contenuti.</p>
+        <div class="menu-actions">
+          <a class="menu-action" href="#personalizza" id="open-customizer">
+            <span class="menu-action-icon">✎</span>
+            <span><strong>Personalizza</strong><small>Itinerario, luoghi e ricerche</small></span>
+            <span aria-hidden="true">›</span>
+          </a>
+          <button class="menu-action" id="export-data" type="button">
+            <span class="menu-action-icon">↑</span>
+            <span><strong>Esporta modifiche</strong><small>Backup o trasferimento su un altro dispositivo</small></span>
+            <span aria-hidden="true">›</span>
+          </button>
+          <label class="menu-action" for="import-data">
+            <span class="menu-action-icon">↓</span>
+            <span><strong>Importa modifiche</strong><small>Carica un backup della guida</small></span>
+            <span aria-hidden="true">›</span>
+          </label>
+          <input id="import-data" type="file" accept="application/json,.json" hidden />
+        </div>
+        <div class="install-tip">
+          <strong>Portala sulla Home</strong>
+          <p>In Safari: <strong>Condividi → Aggiungi alla schermata Home</strong>, quindi attiva <strong>Apri come app</strong>.</p>
+        </div>
       </form>
     </dialog>
 
