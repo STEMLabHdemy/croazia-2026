@@ -803,5 +803,16 @@ route();
 initCloud();
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+  let refreshingForUpdate = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshingForUpdate) return;
+    refreshingForUpdate = true;
+    window.location.reload();
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('./sw.js?v=11', { updateViaCache: 'none' })
+      .then(registration => registration.update())
+      .catch(error => console.warn('Aggiornamento offline non riuscito:', error));
+  });
 }
