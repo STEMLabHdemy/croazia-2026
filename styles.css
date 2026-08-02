@@ -410,13 +410,36 @@ main {
 .back-button { display: grid; flex: 0 0 auto; width: 42px; height: 42px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--sea-800); background: white; font-size: 24px; text-decoration: none; }
 .customizer-head h1 { margin: 2px 0 0; font-size: 29px; letter-spacing: -.04em; line-height: 1; }
 .customizer-head p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
-.save-status { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; color: #17695f; font-size: 10px; font-weight: 750; }
+.save-status { display: inline-flex; align-items: center; gap: 6px; color: #17695f; font-size: 11px; font-weight: 750; }
 .save-status::before { width: 6px; height: 6px; border-radius: 50%; background: #36a08d; content: ""; }
+.save-status[data-state="dirty"] { color: #8a5a13; }
+.save-status[data-state="dirty"]::before { background: #d59635; }
+.save-status[data-state="saving"]::before { animation: pulse 1s infinite alternate; }
+@keyframes pulse { to { opacity: .25; transform: scale(.75); } }
 
 .editor-tabs { display: flex; gap: 7px; margin: 0 -16px 17px; padding: 0 16px 3px; overflow-x: auto; scrollbar-width: none; }
 .editor-tabs::-webkit-scrollbar { display: none; }
 .editor-tab { flex: 0 0 auto; padding: 9px 14px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: white; font-size: 12px; font-weight: 700; }
 .editor-tab.active { border-color: var(--sea-700); color: white; background: var(--sea-700); }
+
+.editor-save-bar {
+  position: sticky;
+  z-index: 12;
+  top: calc(8px + var(--safe-top));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 11px 10px 13px;
+  border: 1px solid rgba(203, 219, 214, .92);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 7px 24px rgba(31, 70, 65, .10);
+  backdrop-filter: blur(18px) saturate(1.25);
+}
+.editor-save-bar .button { flex: 0 0 auto; min-width: 132px; }
+.editor-save-bar .button:disabled { cursor: default; opacity: .45; }
 
 .editor-pane[hidden] { display: none; }
 .editor-stack { display: grid; gap: 10px; }

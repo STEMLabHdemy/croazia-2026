@@ -103,7 +103,7 @@ const STORAGE_KEY = 'croazia-2026-custom-data-v1';
 const GUIDE_ID = 'croazia-2026';
 const OWNER_EMAIL = 'stemlabhdemy@proton.me';
 const defaults = JSON.parse(JSON.stringify({ days: trip.days, places, utilities }));
-const cloud = { client: null, user: null, initialized: false, available: false, channel: null, saveTimer: null };
+const cloud = { client: null, user: null, initialized: false, available: false, channel: null, dirty: false, saving: false };
 
 function replaceArray(target, source) {
   target.splice(0, target.length, ...source);
@@ -131,15 +131,8 @@ function loadData() {
 
 function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1, days: trip.days, places, utilities }));
-  const status = document.querySelector('#save-status');
-  if (status) {
-    status.textContent = cloud.user ? 'Sincronizzazione…' : 'Salvato solo su questo browser';
-    clearTimeout(saveData.statusTimer);
-    saveData.statusTimer = setTimeout(() => {
-      if (!cloud.user) status.textContent = 'Accedi per sincronizzare le modifiche';
-    }, 1600);
-  }
-  scheduleCloudSave();
+  cloud.dirty = true;
+  updateSaveControls();
 }
 
 loadData();
@@ -170,9 +163,30 @@ function currentData() {
   return { version: 1, days: trip.days, places, utilities };
 }
 
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function setSaveStatus(message) {
   const status = document.querySelector('#save-status');
   if (status) status.textContent = message;
+}
+
+function updateSaveControls() {
+  const button = document.querySelector('#save-all-changes');
+  const status = document.querySelector('#save-status');
+  if (button) {
+    button.disabled = !cloud.dirty || cloud.saving;
+    button.textContent = cloud.saving ? 'Salvataggio…' : 'Salva modifiche';
+  }
+  if (status) status.dataset.state = cloud.saving ? 'saving' : cloud.dirty ? 'dirty' : 'saved';
+  if (cloud.saving) setSaveStatus('Invio delle modifiche…');
+  else if (cloud.dirty) setSaveStatus('Modifiche non ancora salvate');
+  else setSaveStatus('Tutto sincronizzato');
 }
 
 async function initCloud() {
@@ -217,6 +231,7 @@ async function loadCloudGuide() {
   cloud.available = true;
   if (data?.content && validData(data.content)) {
     applyData(data.content);
+    cloud.dirty = false;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data.content));
     route();
     return true;
@@ -232,8 +247,13 @@ function subscribeToCloud() {
       event: '*', schema: 'public', table: 'travel_guides', filter: `id=eq.${GUIDE_ID}`
     }, payload => {
       const incoming = payload.new?.content;
-      if (!validData(incoming) || JSON.stringify(incoming) === JSON.stringify(currentData())) return;
+      if (!validData(incoming) || stableStringify(incoming) === stableStringify(currentData())) return;
+      if (cloud.dirty) {
+        showToast('Aggiornamento cloud disponibile: salva prima la tua bozza');
+        return;
+      }
       applyData(incoming);
+      cloud.dirty = false;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(incoming));
       route();
       showToast('Guida aggiornata dal cloud');
@@ -241,14 +261,10 @@ function subscribeToCloud() {
     .subscribe();
 }
 
-function scheduleCloudSave() {
-  if (!cloud.client || !cloud.user) return;
-  clearTimeout(cloud.saveTimer);
-  cloud.saveTimer = setTimeout(saveCloudData, 650);
-}
-
 async function saveCloudData() {
-  if (!cloud.client || !cloud.user) return;
+  if (!cloud.client || !cloud.user || cloud.saving) return false;
+  cloud.saving = true;
+  updateSaveControls();
   const payload = currentData();
   const { error } = await cloud.client.from('travel_guides').upsert({
     id: GUIDE_ID,
@@ -258,13 +274,20 @@ async function saveCloudData() {
   }, { onConflict: 'id' });
 
   if (error) {
+    cloud.saving = false;
     setSaveStatus('Errore di sincronizzazione');
     showToast('Non è stato possibile salvare nel cloud');
-    return;
+    updateSaveControls();
+    return false;
   }
 
   cloud.available = true;
-  setSaveStatus('Salvato e sincronizzato');
+  cloud.saving = false;
+  cloud.dirty = false;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  updateSaveControls();
+  showToast('Modifiche salvate e sincronizzate');
+  return true;
 }
 
 async function signInToCloud(password) {
@@ -277,6 +300,7 @@ async function signInToCloud(password) {
 
 async function signOutFromCloud() {
   if (!cloud.client) return;
+  if (cloud.dirty && !confirm('Hai modifiche non salvate. Vuoi uscire comunque dalla modalità modifica?')) return;
   await cloud.client.auth.signOut();
   cloud.user = null;
   route();
@@ -653,12 +677,16 @@ function renderCustomizer(activePane = 'itinerario') {
   app.innerHTML = `
     <header class="customizer-head">
       <a class="back-button" href="#home" aria-label="Torna alla guida">‹</a>
-      <div><h1>Personalizza</h1><p>Stai modificando la guida condivisa.</p><span class="save-status" id="save-status">Salvato e sincronizzato</span></div>
+      <div><h1>Personalizza</h1><p>Modifica liberamente e salva tutto insieme quando hai finito.</p></div>
     </header>
     <div class="editor-tabs" role="tablist">
       <button class="editor-tab ${activePane === 'itinerario' ? 'active' : ''}" data-editor-tab="itinerario" type="button">Itinerario</button>
       <button class="editor-tab ${activePane === 'luoghi' ? 'active' : ''}" data-editor-tab="luoghi" type="button">Luoghi e posizioni</button>
       <button class="editor-tab ${activePane === 'ricerche' ? 'active' : ''}" data-editor-tab="ricerche" type="button">Ricerche rapide</button>
+    </div>
+    <div class="editor-save-bar">
+      <span class="save-status" id="save-status" role="status">Tutto sincronizzato</span>
+      <button class="button primary" id="save-all-changes" type="button">Salva modifiche</button>
     </div>
     <section class="editor-pane" data-editor-pane="itinerario" ${activePane !== 'itinerario' ? 'hidden' : ''}>${itineraryEditor()}</section>
     <section class="editor-pane" data-editor-pane="luoghi" ${activePane !== 'luoghi' ? 'hidden' : ''}>${placesEditor()}</section>
@@ -666,10 +694,12 @@ function renderCustomizer(activePane = 'itinerario') {
     <footer class="editor-footer">
       <button class="button wide" id="reset-data" type="button">Ripristina contenuti originali</button>
       <button class="text-button" id="cloud-sign-out" type="button">Esci dalla modalità modifica</button>
-      <p class="editor-note">Le modifiche vengono salvate online e inviate automaticamente agli altri dispositivi.</p>
+      <p class="editor-note">Le modifiche restano in bozza finché non premi “Salva modifiche”.</p>
     </footer>`;
 
   bindCustomizer();
+  updateSaveControls();
+  document.querySelector('#save-all-changes').addEventListener('click', saveCloudData);
   document.querySelector('#cloud-sign-out').addEventListener('click', signOutFromCloud);
 }
 
@@ -682,7 +712,12 @@ function bindCustomizer() {
     });
   });
 
-  app.addEventListener('change', handleEditorChange, { once: false });
+  app.oninput = event => {
+    if (!event.target.dataset.kind) return;
+    cloud.dirty = true;
+    updateSaveControls();
+  };
+  app.onchange = handleEditorChange;
 
   document.querySelectorAll('[data-add-item]').forEach(button => button.addEventListener('click', () => {
     const dayIndex = Number(button.dataset.addItem);
@@ -712,7 +747,7 @@ function bindCustomizer() {
   }));
   document.querySelector('#reset-data')?.addEventListener('click', () => {
     if (!confirm('Ripristinare tutti i contenuti originali? Le tue modifiche verranno eliminate.')) return;
-    applyData(JSON.parse(JSON.stringify(defaults))); saveData(); renderCustomizer('itinerario'); showToast('Contenuti originali ripristinati');
+    applyData(JSON.parse(JSON.stringify(defaults))); saveData(); renderCustomizer('itinerario'); showToast('Contenuti originali ripristinati nella bozza');
   });
 }
 
@@ -748,6 +783,11 @@ app.addEventListener('touchend', event => {
   if (field && document.activeElement !== field) field.focus();
 }, { passive: true });
 window.addEventListener('hashchange', route);
+window.addEventListener('beforeunload', event => {
+  if (!cloud.dirty) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
 route();
 initCloud();
 
